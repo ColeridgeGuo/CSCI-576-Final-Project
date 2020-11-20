@@ -1,10 +1,11 @@
 import tkinter as tk
 import sys
+import os
 from PIL import Image
 from PIL.ImageTk import PhotoImage
 from progressbar import progressbar
 
-WIDTH, HEIGHT = 640, 480
+WIDTH, HEIGHT = 640, 360
 VID_LEN, FPS = 20, 24
 
 class VideoDisplay:
@@ -27,7 +28,7 @@ class VideoDisplay:
         rgbs = zip(rgbs[:n], rgbs[n:n * 2], rgbs[n * 2:])
         return bytes(v for tup in rgbs for v in tup)
     
-    def update(self, ind: int):
+    def update(self, ind: int) -> None:
         frame = self.frames[ind]  # get the frame at index
         ind += 1  # increment frame index
         if ind == VID_LEN * FPS:  # return if reached end of the video
@@ -39,10 +40,11 @@ class VideoDisplay:
         vid_name = fp.split('/')[-1]  # extract video name from file path
         
         # file paths to all frames
-        fpaths = [f'{fp}/{vid_name}.{i:04}.rgb' for i in range(VID_LEN * FPS)]
+        dirs = sorted(os.listdir(fp), key=lambda x: int(x[5:-4]))
+        fpaths = [f'{fp}/{frame}' for frame in dirs[:VID_LEN * FPS]]
         
         # read in all frames' rgb values
-        print(f"\n\033[92mReading rgb values of frames: \033[0m")
+        print(f"\n\033[95mReading rgb values of video '{vid_name}': \033[0m")
         data = [self.read_image_RGB(fpath) for fpath in progressbar(fpaths)]
         
         # convert rgb values to PhotoImage for display in GUI
