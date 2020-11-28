@@ -5,7 +5,6 @@ from typing import NoReturn
 from PIL import Image
 from PIL.ImageTk import PhotoImage
 import numpy as np
-import time
 from progressbar import ProgressBar, progressbar
 
 WIDTH, HEIGHT = 640, 360
@@ -32,9 +31,6 @@ def RGB_to_YUV(rgb: np.ndarray) -> np.ndarray:
 class MediaQuery:
     
     def __init__(self, fpath: str):
-        self.root = tk.Tk()  # base GUI container
-        self.label = tk.Label(self.root)  # tkinter label to show image
-        
         vid_name = fpath.split('/')[-1]  # extract video name from file path
         self.vid_name = vid_name
         self.fp = fpath
@@ -42,13 +38,9 @@ class MediaQuery:
         dirs = sorted(os.listdir(self.fp), key=lambda x: int(x[5:-4]))
         fpaths = [f'{self.fp}/{frame}' for frame in dirs[:VID_LEN * FPS]]
         # read in all frames' rgb values
-        print(f'Reading RGB values of video "{self.vid_name}"...')
+        print(f'\nReading RGB values of video "{self.vid_name}"...')
         self.data = np.array([read_image_RGB(fpath)
                               for fpath in progressbar(fpaths)])
-        # convert rgb values to PhotoImage for display in GUI
-        self.frames = [PhotoImage(Image.fromarray(d)) for d in self.data]
-        # When you add a PhotoImage to a Tkinter widget, you must keep your own
-        # reference to the image object, hence storing them in a list
         
     def calc_motion(self) -> int:
         # recast datatype to avoid over/underflow
@@ -97,21 +89,28 @@ class MediaQuery:
         # diff = next_YUV - curr_YUV
         return np.sum(np.abs(diff))
     
-    def update(self, ind: int) -> NoReturn:
-        frame = self.frames[ind]  # get the frame at index
-        ind += 1  # increment frame index
-        if ind == VID_LEN * FPS:  # close GUI if reached end of the video
-            # comment out if you want the video to persist after playing 20s
-            self.root.destroy()
-            return
-        self.label.configure(image=frame)  # display frame
-        self.root.after(40, self.update, ind)  # call to display next frame
-        
     def show_video(self) -> NoReturn:
-        self.label.pack()
-        # callback update() to automatically update frames
-        self.root.after(0, self.update, 0)
-        self.root.mainloop()
+        
+        def update(ind: int) -> NoReturn:
+            # the callback function to automatically update frames
+            frame = frames[ind]  # get the frame at index
+            ind += 1  # increment frame index
+            if ind == VID_LEN * FPS:  # close GUI if reached end of the video
+                # comment out if you want the video to persist after playing 20s
+                root.destroy()
+                return
+            label.configure(image=frame)  # display frame
+            root.after(40, update, ind)  # call to display next frame
+            
+        root = tk.Tk()
+        label = tk.Label(root)
+        # convert rgb values to PhotoImage for display in GUI
+        #   when you add a PhotoImage to a Tkinter widget, you must keep your
+        #   own reference to the image object, hence storing them in a list
+        frames = [PhotoImage(Image.fromarray(d)) for d in self.data]
+        label.pack()
+        root.after(0, update, 0)
+        root.mainloop()
         
         
 if __name__ == '__main__':
