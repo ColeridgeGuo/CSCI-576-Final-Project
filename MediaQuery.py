@@ -6,7 +6,7 @@ from PIL import Image
 from PIL.ImageTk import PhotoImage
 import numpy as np
 import time
-from progressbar import ProgressBar
+from progressbar import ProgressBar, progressbar
 
 WIDTH, HEIGHT = 640, 360
 VID_LEN, FPS = 20, 24
@@ -29,15 +29,18 @@ def RGB_to_YUV(rgb: np.ndarray) -> np.ndarray:
     return np.dot([.299, .587, 0.114], rgb)
 
 
-class VideoDisplay:
+class MediaQuery:
     
-    def __init__(self):
+    def __init__(self, fpath: str):
+        vid_name = fpath.split('/')[-1]  # extract video name from file path
+        self.vid_name = vid_name
+        self.fp = fpath
+        
         self.root = tk.Tk()  # base GUI container
         self.frames = None  # list of PhotoImages to display
         # When you add a PhotoImage or other Image object to a Tkinter widget,
         # you must keep your own reference to the image object.
         self.data = None
-        self.vid_name = ''
         self.label = tk.Label(self.root)  # tkinter label to show image
         
     def calc_motion(self) -> int:
@@ -95,16 +98,16 @@ class VideoDisplay:
         self.label.configure(image=frame)  # display frame
         self.root.after(40, self.update, ind)  # call to display next frame
         
-    def show_image(self, fp: str) -> NoReturn:
-        vid_name = fp.split('/')[-1]  # extract video name from file path
-        self.vid_name = vid_name
+    def show_video(self) -> NoReturn:
         
         # file paths to all frames
-        dirs = sorted(os.listdir(fp), key=lambda x: int(x[5:-4]))
-        fpaths = (f'{fp}/{frame}' for frame in dirs[:VID_LEN * FPS])
+        dirs = sorted(os.listdir(self.fp), key=lambda x: int(x[5:-4]))
+        fpaths = [f'{self.fp}/{frame}' for frame in dirs[:VID_LEN * FPS]]
         
         # read in all frames' rgb values
-        self.data = np.array([read_image_RGB(fpath) for fpath in fpaths])
+        print(f'Reading RGB values of video "{self.vid_name}"...')
+        self.data = np.array([read_image_RGB(fpath)
+                              for fpath in progressbar(fpaths)])
         # convert rgb values to PhotoImage for display in GUI
         self.frames = [PhotoImage(Image.fromarray(d)) for d in self.data]
         
@@ -122,5 +125,5 @@ class VideoDisplay:
 if __name__ == '__main__':
     args = sys.argv
     file_path = args[1]
-    vd = VideoDisplay()
-    vd.show_image(file_path)
+    vd = MediaQuery(file_path)
+    vd.show_video()
