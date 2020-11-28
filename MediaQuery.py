@@ -93,7 +93,9 @@ class MediaQuery:
     def update(self, ind: int) -> NoReturn:
         frame = self.frames[ind]  # get the frame at index
         ind += 1  # increment frame index
-        if ind == VID_LEN * FPS:  # return if reached end of the video
+        if ind == VID_LEN * FPS:  # close GUI if reached end of the video
+            # comment out if you want the video to persist after playing 20s
+            self.root.destroy()
             return
         self.label.configure(image=frame)  # display frame
         self.root.after(40, self.update, ind)  # call to display next frame
@@ -111,11 +113,6 @@ class MediaQuery:
         # convert rgb values to PhotoImage for display in GUI
         self.frames = [PhotoImage(Image.fromarray(d)) for d in self.data]
         
-        start_time = time.time()
-        motion_in_vid = self.calc_motion()
-        print(f'--- {time.time() - start_time:.4f} seconds')
-        print(f'The motion in video "{self.vid_name}" {motion_in_vid}')
-        
         self.label.pack()
         # callback update() to automatically update frames
         self.root.after(0, self.update, 0)
@@ -127,3 +124,6 @@ if __name__ == '__main__':
     file_path = args[1]
     vd = MediaQuery(file_path)
     vd.show_video()
+
+    motion_in_vid = vd.calc_motion()
+    print(f'The motion in video "{vd.vid_name}": {motion_in_vid}')
