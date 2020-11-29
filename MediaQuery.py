@@ -1,5 +1,5 @@
 import tkinter as tk
-import sys
+import json
 import os
 from typing import NoReturn
 from PIL import Image
@@ -31,7 +31,7 @@ def RGB_to_YUV(rgb: np.ndarray) -> np.ndarray:
 class MediaQuery:
     
     def __init__(self, fpath: str):
-        vid_name = fpath.split('/')[-1]  # extract video name from file path
+        vid_name = fpath.split(os.sep)[-1]  # extract video name from file path
         self.vid_name = vid_name
         self.fp = fpath
         # file paths to all frames
@@ -114,10 +114,15 @@ class MediaQuery:
         
         
 if __name__ == '__main__':
-    args = sys.argv
-    file_path = args[1]
-    vd = MediaQuery(file_path)
-    vd.show_video()
+    fpath = "/Users/yingxuanguo/Documents/USC/CSCI-576/Final Project/Data_rgb"
+    categories = next(os.walk(fpath))[1]
+    cat_paths = [os.path.join(fpath, cat) for cat in categories]
+    videos = [next(os.walk(cat))[1] for cat in cat_paths]
+    vid_paths = [[os.path.join(cat_paths[i], v) for v in cat]
+                 for i, cat in enumerate(videos)]
+    motion = {categories[i]: {videos[i][j]: MediaQuery(v).calc_motion()
+                              for j, v in enumerate(c)}
+              for i, c in enumerate(vid_paths)}
     
-    motion_in_vid = vd.calc_motion()
-    print(f'The motion in video "{vd.vid_name}": {motion_in_vid}')
+    with open('data.json', 'w') as f:
+        json.dump(motion, f)
