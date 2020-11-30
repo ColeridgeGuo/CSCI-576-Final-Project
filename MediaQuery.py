@@ -1,11 +1,13 @@
 import tkinter as tk
 import json
+import sys
 import os
 from typing import NoReturn
 from PIL import Image
 from PIL.ImageTk import PhotoImage
 import numpy as np
-from progressbar import ProgressBar, progressbar
+from tqdm import tqdm
+import cv2
 
 WIDTH, HEIGHT = 640, 360
 VID_LEN, FPS = 20, 24
@@ -13,8 +15,8 @@ K = 1  # search parameter for search area
 B_SIZE = 20  # size of macroblocks
 
 
-def read_image_RGB(fpath: str) -> np.ndarray:
-    binary_file = np.fromfile(fpath, dtype='uint8')
+def read_image_RGB(fp: str) -> np.ndarray:
+    binary_file = np.fromfile(fp, dtype='uint8')
     N = WIDTH * HEIGHT  # num of pixels in the image
     
     # store rgbs values into a 3-D array to be used for Image.fromarray()
@@ -28,26 +30,28 @@ def RGB_to_YUV(rgb: np.ndarray) -> np.ndarray:
     return np.dot([.299, .587, 0.114], rgb)
 
 
-class MediaQuery:
+class VideoQuery:
     
-    def __init__(self, fpath: str):
-        vid_name = fpath.split(os.sep)[-1]  # extract video name from file path
-        self.vid_name = vid_name
-        self.fp = fpath
+    def __init__(self, fp: str):
+        vid_name = fp.split(os.sep)[-1]  # extract video name from file path
+        category = vid_name.split('_')[0]  # extract category from file path
+        self.name = vid_name
+        self.category = category
+        self.fp = fp
         # file paths to all frames
         dirs = sorted(os.listdir(self.fp), key=lambda x: int(x[5:-4]))
         fpaths = [f'{self.fp}/{frame}' for frame in dirs[:VID_LEN * FPS]]
         # read in all frames' rgb values
-        print(f'\nReading RGB values of video "{self.vid_name}"...')
-        self.data = np.array([read_image_RGB(fpath)
-                              for fpath in progressbar(fpaths)])
+        print(f'\nReading RGB values of video "{self.name}"...')
+        data_ = [read_image_RGB(fp) for fp in tqdm(fpaths)]
+        self.data = np.array(data_)
         
     def calc_motion(self) -> int:
         # recast datatype to avoid over/underflow
         self.data = self.data.astype('int64')
         total_motion = 0
-        print(f'Calculating motion of video "{self.vid_name}" ...')
-        with ProgressBar(max_value=VID_LEN * FPS - 1) as bar:
+        print(f'Calculating motion of video "{self.name}" ...')
+        with tqdm(total=VID_LEN * FPS - 1) as bar:
             for frame_idx in range(VID_LEN * FPS - 1):
                 for y in range(0, HEIGHT, B_SIZE):
                     for x in range(0, WIDTH, B_SIZE):
@@ -67,7 +71,7 @@ class MediaQuery:
                                     best_match = (i, j)
                         if best_match != (y, x):
                             total_motion += 1
-                bar.update(frame_idx)
+                bar.update(1)
         return total_motion
     
     def calc_SAD(self, frame_idx: int,
@@ -88,6 +92,15 @@ class MediaQuery:
         diff = next_RGB - curr_RGB
         # diff = next_YUV - curr_YUV
         return np.sum(np.abs(diff))
+    
+    def to_video(self) -> NoReturn:
+        # frames = [Image.fromarray(frame) for frame in self.data]
+        fourcc = cv2.VideoWriter_fourcc(*'MJPG')
+        vid_writer = cv2.VideoWriter(f'{self.name}.avi', fourcc, FPS,
+                                     (WIDTH, HEIGHT))
+        for frame in self.data:
+            vid_writer.write(cv2.cvtColor(frame, cv2.COLOR_RGB2BGR))
+        return
     
     def show_video(self) -> NoReturn:
         
@@ -114,15 +127,6 @@ class MediaQuery:
         
         
 if __name__ == '__main__':
-    fpath = "/Users/yingxuanguo/Documents/USC/CSCI-576/Final Project/Data_rgb"
-    categories = next(os.walk(fpath))[1]
-    cat_paths = [os.path.join(fpath, cat) for cat in categories]
-    videos = [next(os.walk(cat))[1] for cat in cat_paths]
-    vid_paths = [[os.path.join(cat_paths[i], v) for v in cat]
-                 for i, cat in enumerate(videos)]
-    motion = {categories[i]: {videos[i][j]: MediaQuery(v).calc_motion()
-                              for j, v in enumerate(c)}
-              for i, c in enumerate(vid_paths)}
-    
-    with open('data.json', 'w') as f:
-        json.dump(motion, f)
+    fpath = sys.argv[1]
+    vd = VideoQuery(fpath)
+    vd.to_video()
