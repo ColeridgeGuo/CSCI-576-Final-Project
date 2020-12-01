@@ -8,6 +8,9 @@ from PIL.ImageTk import PhotoImage
 import numpy as np
 from tqdm import tqdm
 import cv2
+from scenedetect import VideoManager
+from scenedetect import SceneManager
+from scenedetect.detectors import ContentDetector
 
 WIDTH, HEIGHT = 640, 360
 VID_LEN, FPS = 20, 24
@@ -50,7 +53,7 @@ class VideoQuery:
         # recast datatype to avoid over/underflow
         self.data = self.data.astype('int64')
         total_motion = 0
-        print(f'Calculating motion of video "{self.name}" ...')
+        print(f'Calculating motion of video "{self.name}"...')
         with tqdm(total=VID_LEN * FPS - 1) as bar:
             for frame_idx in range(VID_LEN * FPS - 1):
                 for y in range(0, HEIGHT, B_SIZE):
@@ -94,13 +97,26 @@ class VideoQuery:
         return np.sum(np.abs(diff))
     
     def to_video(self) -> NoReturn:
-        # frames = [Image.fromarray(frame) for frame in self.data]
         fourcc = cv2.VideoWriter_fourcc(*'MJPG')
         vid_writer = cv2.VideoWriter(f'{self.name}.avi', fourcc, FPS,
                                      (WIDTH, HEIGHT))
+        print(f'\nConverting "{self.name}" to .avi videos...')
         for frame in self.data:
             vid_writer.write(cv2.cvtColor(frame, cv2.COLOR_RGB2BGR))
         return
+    
+    def scene_detect(self, threshold: float = 30.0) -> int:
+        video_manager = VideoManager([f'{self.name}.avi'])
+        scene_manager = SceneManager()
+        scene_manager.add_detector(ContentDetector(threshold=threshold))
+        base_timecode = video_manager.get_base_timecode()
+        video_manager.set_downscale_factor()
+        print(f'\nDetecting scenes in video "{self.name}"...')
+        video_manager.start()
+        scene_manager.detect_scenes(frame_source=video_manager)
+        scene_list = scene_manager.get_scene_list(base_timecode)
+        os.remove(f'{self.name}.avi')  # remove the video created
+        return len(scene_list)-1
     
     def show_video(self) -> NoReturn:
         
@@ -127,6 +143,18 @@ class VideoQuery:
         
         
 if __name__ == '__main__':
-    fpath = sys.argv[1]
-    vd = VideoQuery(fpath)
-    vd.to_video()
+    fpath = "/Users/yingxuanguo/Documents/USC/CSCI-576/Final Project/Data_rgb"
+    categories = next(os.walk(fpath))[1]
+    cat_paths = [os.path.join(fpath, cat) for cat in categories]
+    vid_names = [next(os.walk(cat))[1] for cat in cat_paths]
+    vid_paths = [[os.path.join(cat_paths[i], v) for v in cat]
+                 for i, cat in enumerate(vid_names)]
+    videos = [[VideoQuery(vid) for vid in cat] for cat in vid_paths]
+    to_vid = [[vid.to_video() for vid in cat] for cat in videos]
+    scenes = {categories[i]: {vid_names[i][j]: vid.scene_detect()
+                              for j, vid in enumerate(c)}
+              for i, c in enumerate(videos)}
+    scenes = {"feature_name": "scene_cuts", "values": scenes}
+    with open('data.json', 'w') as f:
+        json.dump(scenes, f, indent=2, sort_keys=True)
+
