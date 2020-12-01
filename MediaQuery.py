@@ -152,13 +152,15 @@ if __name__ == '__main__':
     categories = next(os.walk(fpath))[1]
     cat_paths = [os.path.join(fpath, cat) for cat in categories]
     vid_names = [next(os.walk(cat))[1] for cat in cat_paths]
-    vid_paths = [[os.path.join(cat_paths[i], v) for v in cat]
-                 for i, cat in enumerate(vid_names)]
-    videos = [[VideoQuery(vid) for vid in cat] for cat in vid_paths]
-    to_vid = [[vid.to_video() for vid in cat] for cat in videos]
-    scenes = {categories[i]: {vid_names[i][j]: vid.scene_detect()
-                              for j, vid in enumerate(c)}
-              for i, c in enumerate(videos)}
+    # # commented code below used for converting form rgb to .avi video files
+    # vid_paths = [[os.path.join(cat_paths[i], v) for v in cat]
+    #              for i, cat in enumerate(vid_names)]
+    # videos = [[VideoQuery(vid) for vid in cat] for cat in vid_paths]
+    # to_vid = [[vid.to_video() for vid in cat] for cat in videos]
+    scenes = {categories[i]:
+                  {vid_names[i][j]: scene_detect(vid_names[i][j], 25)
+                   for j, vid in enumerate(c)}
+              for i, c in enumerate(vid_names)}
     scenes = {"feature_name": "scene_cuts", "values": scenes}
     with open('data.json', 'w') as f:
         json.dump(scenes, f, indent=2, sort_keys=True)
