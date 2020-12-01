@@ -29,8 +29,17 @@ def read_image_RGB(fp: str) -> np.ndarray:
                                       dtype='uint8').reshape((-1, WIDTH))
     return rgbs
 
-def RGB_to_YUV(rgb: np.ndarray) -> np.ndarray:
-    return np.dot([.299, .587, 0.114], rgb)
+def scene_detect(name: str, threshold: float = 30.0) -> int:
+    video_manager = VideoManager([f'out/{name}.avi'])
+    scene_manager = SceneManager()
+    scene_manager.add_detector(ContentDetector(threshold=threshold))
+    base_timecode = video_manager.get_base_timecode()
+    video_manager.set_downscale_factor()
+    print(f'\nDetecting scenes in video "{name}"...')
+    video_manager.start()
+    scene_manager.detect_scenes(frame_source=video_manager)
+    scene_list = scene_manager.get_scene_list(base_timecode)
+    return len(scene_list)-1
 
 
 class VideoQuery:
@@ -97,25 +106,12 @@ class VideoQuery:
     
     def to_video(self) -> NoReturn:
         fourcc = cv2.VideoWriter_fourcc(*'MJPG')
-        vid_writer = cv2.VideoWriter(f'{self.name}.avi', fourcc, FPS,
+        vid_writer = cv2.VideoWriter(f'out/{self.name}.avi', fourcc, FPS,
                                      (WIDTH, HEIGHT))
-        print(f'\nConverting "{self.name}" to .avi videos...')
+        print(f'Converting "{self.name}" to .avi videos...')
         for frame in self.data:
             vid_writer.write(cv2.cvtColor(frame, cv2.COLOR_RGB2BGR))
         return
-    
-    def scene_detect(self, threshold: float = 30.0) -> int:
-        video_manager = VideoManager([f'{self.name}.avi'])
-        scene_manager = SceneManager()
-        scene_manager.add_detector(ContentDetector(threshold=threshold))
-        base_timecode = video_manager.get_base_timecode()
-        video_manager.set_downscale_factor()
-        print(f'\nDetecting scenes in video "{self.name}"...')
-        video_manager.start()
-        scene_manager.detect_scenes(frame_source=video_manager)
-        scene_list = scene_manager.get_scene_list(base_timecode)
-        os.remove(f'{self.name}.avi')  # remove the video created
-        return len(scene_list)-1
     
     def show_video(self) -> NoReturn:
         
@@ -142,17 +138,29 @@ class VideoQuery:
         
         
 if __name__ == '__main__':
+    args = sys.argv
+    if len(args) > 1:  # if input video specified, process single video
+        fq = args[1]
+        vid_name = fq.split('/')[-1]
+        vq = VideoQuery(fq)
+        vq.to_video()
+        sc = scene_detect(vid_name, threshold=20)
+        print(sc)
+        
+        sys.exit()
     fpath = "/Users/yingxuanguo/Documents/USC/CSCI-576/Final Project/Data_rgb"
     categories = next(os.walk(fpath))[1]
     cat_paths = [os.path.join(fpath, cat) for cat in categories]
     vid_names = [next(os.walk(cat))[1] for cat in cat_paths]
-    vid_paths = [[os.path.join(cat_paths[i], v) for v in cat]
-                 for i, cat in enumerate(vid_names)]
-    videos = [[VideoQuery(vid) for vid in cat] for cat in vid_paths]
-    to_vid = [[vid.to_video() for vid in cat] for cat in videos]
-    scenes = {categories[i]: {vid_names[i][j]: vid.scene_detect()
-                              for j, vid in enumerate(c)}
-              for i, c in enumerate(videos)}
+    # # commented code below used for converting form rgb to .avi video files
+    # vid_paths = [[os.path.join(cat_paths[i], v) for v in cat]
+    #              for i, cat in enumerate(vid_names)]
+    # videos = [[VideoQuery(vid) for vid in cat] for cat in vid_paths]
+    # to_vid = [[vid.to_video() for vid in cat] for cat in videos]
+    scenes = {categories[i]:
+                  {vid_names[i][j]: scene_detect(vid_names[i][j], 25)
+                   for j, vid in enumerate(c)}
+              for i, c in enumerate(vid_names)}
     scenes = {"feature_name": "scene_cuts", "values": scenes}
     with open('data.json', 'w') as f:
         json.dump(scenes, f, indent=2, sort_keys=True)
