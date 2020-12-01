@@ -46,8 +46,7 @@ class VideoQuery:
         fpaths = [f'{self.fp}/{frame}' for frame in dirs[:VID_LEN * FPS]]
         # read in all frames' rgb values
         print(f'\nReading RGB values of video "{self.name}"...')
-        data_ = [read_image_RGB(fp) for fp in tqdm(fpaths)]
-        self.data = np.array(data_)
+        self.data = np.array([read_image_RGB(fp) for fp in tqdm(fpaths)])
         
     def calc_motion(self) -> int:
         # recast datatype to avoid over/underflow
@@ -157,4 +156,3 @@ if __name__ == '__main__':
     scenes = {"feature_name": "scene_cuts", "values": scenes}
     with open('data.json', 'w') as f:
         json.dump(scenes, f, indent=2, sort_keys=True)
-
