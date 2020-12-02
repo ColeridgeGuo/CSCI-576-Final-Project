@@ -5,3 +5,6 @@ Data_jpg/
 Data_wav/
 output_video/
 output_data/
+output_data.json
+output_df.json
+venv/

@@ -1,6 +1,15 @@
 click==7.1.2
+joblib==0.17.0
 numpy==1.19.4
 opencv-python==4.4.0.46
+pandas==1.1.4
 Pillow==8.0.1
+python-dateutil==2.8.1
+python-utils==2.4.0
+pytz==2020.4
 scenedetect==0.5.4.1
+scikit-learn==0.23.2
+scipy==1.5.4
+six==1.15.0
+threadpoolctl==2.1.0
 tqdm==4.54.0
