@@ -30,7 +30,7 @@ def read_image_RGB(fp: str) -> np.ndarray:
     return rgbs
 
 def scene_detect(name: str, threshold: float = 30.0) -> int:
-    video_manager = VideoManager([f'out/{name}.avi'])
+    video_manager = VideoManager([f'output_video/{name}.avi'])
     scene_manager = SceneManager()
     scene_manager.add_detector(ContentDetector(threshold=threshold))
     base_timecode = video_manager.get_base_timecode()
@@ -45,9 +45,9 @@ def scene_detect(name: str, threshold: float = 30.0) -> int:
 class VideoQuery:
     
     def __init__(self, fp: str):
-        vid_name = fp.split(os.sep)[-1]  # extract video name from file path
-        category = vid_name.split('_')[0]  # extract category from file path
-        self.name = vid_name
+        name = fp.split(os.sep)[-1]  # extract video name from file path
+        category = name.split('_')[0]  # extract category from file path
+        self.name = name
         self.category = category
         self.fp = fp
         # file paths to all frames
@@ -106,8 +106,8 @@ class VideoQuery:
     
     def to_video(self) -> NoReturn:
         fourcc = cv2.VideoWriter_fourcc(*'MJPG')
-        vid_writer = cv2.VideoWriter(f'out/{self.name}.avi', fourcc, FPS,
-                                     (WIDTH, HEIGHT))
+        vid_writer = cv2.VideoWriter(f'output_video/{self.name}.avi', fourcc,
+                                     FPS, (WIDTH, HEIGHT))
         print(f'Converting "{self.name}" to .avi videos...')
         for frame in self.data:
             vid_writer.write(cv2.cvtColor(frame, cv2.COLOR_RGB2BGR))

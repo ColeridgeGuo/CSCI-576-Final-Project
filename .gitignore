@@ -3,4 +3,5 @@
 .idea/
 Data_jpg/
 Data_wav/
-out/
+output_video/
+output_data/
