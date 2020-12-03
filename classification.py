@@ -2,62 +2,70 @@ import pandas as pd
 from pandas import DataFrame as DF
 import json
 import os
-import numpy as np
-from sklearn.svm import SVC
-from sklearn.tree import DecisionTreeClassifier
+from typing import List
+from sklearn.model_selection import GridSearchCV
+from xgboost import XGBClassifier
 
-test_path = os.path.join("Data", "test_data")
-train_path = os.path.join("Data", "train_data")
-test_feat_paths = [p for p in os.listdir(test_path) if p.endswith('.json')]
-train_feat_paths = [p for p in os.listdir(train_path) if p.endswith('.json')]
 
-test_feat, train_feat = {}, {}
-for pt in test_feat_paths:
-    with open(os.path.join(test_path, pt), 'r') as f:
-        feat = json.load(f)
-        test_feat[feat["feature_name"]] = feat["values"]
+def list_files(test_train: str) -> List[str]:
+    path = os.path.join(root_path, test_train)
+    feat_paths = [p for p in os.listdir(path) if p.endswith('.json')]
+    return feat_paths
 
-for pt in train_feat_paths:
-    with open(os.path.join(train_path, pt), 'r') as f:
-        feat = json.load(f)
-        train_feat[feat["feature_name"]] = feat["values"]
+def read_json(data_paths: list, test_train: str) -> dict:
+    data = {}
+    for pt in data_paths:
+        with open(os.path.join(root_path, test_train, pt), 'r') as f:
+            feat = json.load(f)
+            data[feat["feature_name"]] = feat["values"]
+    return data
 
-tr_dfs = [{cat: DF.from_dict(train_feat[ft][cat], orient='index', columns=[ft])
-           for cat in train_feat[ft]} for ft in train_feat]
-tr_dfs = [pd.concat(df) for df in tr_dfs]
-tr_df = tr_dfs[0].join(tr_dfs[1:])
-tr_df.sort_index(axis=1, inplace=True)
-tr_df.to_json('train_output_df.json', indent=2)
+def join_dfs(features: dict):
+    dfs = [{cat: DF.from_dict(features[ft][cat], orient='index', columns=[ft])
+            for cat in features[ft]} for ft in features]
+    dfs = [pd.concat(df) for df in dfs]
+    df = dfs[0].join(dfs[1:])
+    df.sort_index(axis=1, inplace=True)
+    return df
 
-te_dfs = [{cat: DF.from_dict(test_feat[ft][cat], orient='index', columns=[ft])
-           for cat in test_feat[ft]} for ft in test_feat]
-te_dfs = [pd.concat(df) for df in te_dfs]
-te_df = te_dfs[0].join(te_dfs[1:])
-te_df.sort_index(axis=1, inplace=True)
-te_df.to_json('test_output_df.json', indent=2)
 
+# list all json files of all features
+root_path = "Data"
+test_path, train_path = "test_data", "train_data"
+test_feat_paths = list_files(test_path)
+train_feat_paths = list_files(train_path)
+# read all json files into dictionaries
+test_feat = read_json(test_feat_paths, test_path)
+train_feat = read_json(train_feat_paths, train_path)
+# join dataframes into single dataframe
+tr_df = join_dfs(train_feat)
+te_df = join_dfs(test_feat)
 tr_idx1 = tr_df.index.get_level_values(0)
 te_idx1 = te_df.index.get_level_values(0)
-
+# train-test data
 X_train, X_test, y_train, y_test = tr_df, te_df, tr_idx1, te_idx1
 
+def fit_predict(clf) -> list:
+    clf.fit(X_train, y_train)
+    return clf.predict(X_test)
 
-def decision_tree() -> list:
-    dt_clf = DecisionTreeClassifier()
-    dt_clf.fit(X_train, y_train)
-    result = dt_clf.predict(X_test)
-    return result
+def grid_search_cv(model, param_grid, cv=4):
+    gs = GridSearchCV(model(),
+                      param_grid=param_grid,
+                      scoring='accuracy', cv=cv, n_jobs=-1)
+    gs.fit(X_train, y_train)
+    return gs.best_params_
+    
+def format_output(input_list) -> List[str]:
+    return [f'{item:<9}' for item in input_list]
+
+def compare(l1) -> int:
+    return sum(tup1 == tup2 for tup1, tup2 in zip(l1, y_test))
 
 
-def svm():
-    svm_clf = SVC()
-    svm_clf.fit(X_train, y_train)
-    result = svm_clf.predict(X_test)
-    return result
-
-
-dt_res = decision_tree()
-svm_res = svm()
-print(f'Decision Tree: {list(dt_res)}')
-print(f'SVM:           {list(svm_res)}')
-print(f'Y-test:        {list(y_test)}')
+xgb_params = {'n_estimators': (2, 5, 10, 20, 30, 50),
+              'learning_rate': (.01, .05, .1, .2, .3)}
+xgb_params_best = grid_search_cv(XGBClassifier, xgb_params)
+xgb_res = fit_predict(XGBClassifier(**xgb_params_best))
+print(f'XGBoost:        {format_output(xgb_res)} - {compare(xgb_res)}')
+print(f'Y-test:         {format_output(y_test)}')
