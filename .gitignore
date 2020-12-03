@@ -3,8 +3,9 @@
 .idea/
 Data_jpg/
 Data_wav/
-output_video/
-output_data/
-output_data.json
-output_df.json
+output_video_test/
+output_video_train/
+Data/
 venv/
+test_output_df.json
+train_output_df.json
