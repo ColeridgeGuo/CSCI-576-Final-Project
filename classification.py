@@ -2,40 +2,47 @@ import pandas as pd
 from pandas import DataFrame as DF
 import json
 import os
+from typing import List
 import numpy as np
 from sklearn.svm import SVC
 from sklearn.tree import DecisionTreeClassifier
 
-test_path = os.path.join("Data", "test_data")
-train_path = os.path.join("Data", "train_data")
-test_feat_paths = [p for p in os.listdir(test_path) if p.endswith('.json')]
-train_feat_paths = [p for p in os.listdir(train_path) if p.endswith('.json')]
 
-test_feat, train_feat = {}, {}
-for pt in test_feat_paths:
-    with open(os.path.join(test_path, pt), 'r') as f:
-        feat = json.load(f)
-        test_feat[feat["feature_name"]] = feat["values"]
+def list_files(test_train: str) -> List[str]:
+    path = os.path.join(root_path, test_train)
+    feat_paths = [p for p in os.listdir(path) if p.endswith('.json')]
+    return feat_paths
 
-for pt in train_feat_paths:
-    with open(os.path.join(train_path, pt), 'r') as f:
-        feat = json.load(f)
-        train_feat[feat["feature_name"]] = feat["values"]
 
-tr_dfs = [{cat: DF.from_dict(train_feat[ft][cat], orient='index', columns=[ft])
-           for cat in train_feat[ft]} for ft in train_feat]
-tr_dfs = [pd.concat(df) for df in tr_dfs]
-tr_df = tr_dfs[0].join(tr_dfs[1:])
-tr_df.sort_index(axis=1, inplace=True)
-tr_df.to_json('train_output_df.json', indent=2)
+def read_json(data_paths: list, test_train: str) -> dict:
+    data = {}
+    for pt in data_paths:
+        with open(os.path.join(root_path, test_train, pt), 'r') as f:
+            feat = json.load(f)
+            data[feat["feature_name"]] = feat["values"]
+    return data
 
-te_dfs = [{cat: DF.from_dict(test_feat[ft][cat], orient='index', columns=[ft])
-           for cat in test_feat[ft]} for ft in test_feat]
-te_dfs = [pd.concat(df) for df in te_dfs]
-te_df = te_dfs[0].join(te_dfs[1:])
-te_df.sort_index(axis=1, inplace=True)
-te_df.to_json('test_output_df.json', indent=2)
 
+def join_dfs(features: dict):
+    dfs = [{cat: DF.from_dict(features[ft][cat], orient='index', columns=[ft])
+            for cat in features[ft]} for ft in features]
+    dfs = [pd.concat(df) for df in dfs]
+    df = dfs[0].join(dfs[1:])
+    df.sort_index(axis=1, inplace=True)
+    return df
+
+
+# list all json files of all features
+root_path = "Data"
+test_path, train_path = "test_data", "train_data"
+test_feat_paths = list_files(test_path)
+train_feat_paths = list_files(train_path)
+# read all json files into dictionaries
+test_feat = read_json(test_feat_paths, test_path)
+train_feat = read_json(train_feat_paths, train_path)
+# join dataframes into single dataframe
+tr_df = join_dfs(train_feat)
+te_df = join_dfs(test_feat)
 tr_idx1 = tr_df.index.get_level_values(0)
 te_idx1 = te_df.index.get_level_values(0)
 
