@@ -3,16 +3,18 @@ from pandas import DataFrame as DF
 import json
 import os
 from typing import List
-import numpy as np
 from sklearn.svm import SVC
 from sklearn.tree import DecisionTreeClassifier
+from sklearn.naive_bayes import GaussianNB, MultinomialNB
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.ensemble import AdaBoostClassifier
+from xgboost import XGBClassifier
 
 
 def list_files(test_train: str) -> List[str]:
     path = os.path.join(root_path, test_train)
     feat_paths = [p for p in os.listdir(path) if p.endswith('.json')]
     return feat_paths
-
 
 def read_json(data_paths: list, test_train: str) -> dict:
     data = {}
@@ -21,7 +23,6 @@ def read_json(data_paths: list, test_train: str) -> dict:
             feat = json.load(f)
             data[feat["feature_name"]] = feat["values"]
     return data
-
 
 def join_dfs(features: dict):
     dfs = [{cat: DF.from_dict(features[ft][cat], orient='index', columns=[ft])
@@ -48,23 +49,32 @@ te_idx1 = te_df.index.get_level_values(0)
 
 X_train, X_test, y_train, y_test = tr_df, te_df, tr_idx1, te_idx1
 
+def fit_predict(model) -> list:
+    clf = model()
+    clf.fit(X_train, y_train)
+    return clf.predict(X_test)
+    
+def format_output(input_list) -> List[str]:
+    return [f'{item:<9}' for item in input_list]
 
-def decision_tree() -> list:
-    dt_clf = DecisionTreeClassifier()
-    dt_clf.fit(X_train, y_train)
-    result = dt_clf.predict(X_test)
-    return result
-
-
-def svm():
-    svm_clf = SVC()
-    svm_clf.fit(X_train, y_train)
-    result = svm_clf.predict(X_test)
-    return result
+def compare(l1, l2) -> int:
+    return sum(tup1 == tup2 for tup1, tup2 in zip(l1, l2))
 
 
-dt_res = decision_tree()
-svm_res = svm()
-print(f'Decision Tree: {list(dt_res)}')
-print(f'SVM:           {list(svm_res)}')
-print(f'Y-test:        {list(y_test)}')
+dt_res = fit_predict(DecisionTreeClassifier)
+svm_res = fit_predict(SVC)
+gnb_res = fit_predict(GaussianNB)
+mnb_res = fit_predict(MultinomialNB)
+adb_res = fit_predict(AdaBoostClassifier)
+rf_res = fit_predict(RandomForestClassifier)
+xgb_res = fit_predict(XGBClassifier)
+
+print(f'Decision Tree:  {format_output(dt_res)} - {compare(dt_res, y_test)}')
+print(f'SVM:            {format_output(svm_res)} - {compare(svm_res, y_test)}')
+print(f'Gaussian NB:    {format_output(gnb_res)} - {compare(gnb_res, y_test)}')
+print(f'Multinomial NB: {format_output(mnb_res)} - {compare(mnb_res, y_test)}')
+print(f'AdaBoost:       {format_output(adb_res)} - {compare(adb_res, y_test)}')
+print(f'Random Forest:  {format_output(rf_res)} - {compare(rf_res, y_test)}')
+print(f'XGBoost:        {format_output(xgb_res)} - {compare(xgb_res, y_test)}')
+print()
+print(f'Y-test:         {format_output(y_test)}')
