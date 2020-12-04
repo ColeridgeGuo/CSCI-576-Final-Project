@@ -11,6 +11,7 @@ import cv2
 from scenedetect import VideoManager
 from scenedetect import SceneManager
 from scenedetect.detectors import ContentDetector
+import face_recognition as fr
 
 WIDTH, HEIGHT = 640, 360
 VID_LEN, FPS = 20, 24
@@ -40,6 +41,9 @@ def scene_detect(name: str, threshold: float = 30.0) -> int:
     scene_manager.detect_scenes(frame_source=video_manager)
     scene_list = scene_manager.get_scene_list(base_timecode)
     return len(scene_list)-1
+
+def face_detect(img_path: str) -> int:
+    return len(fr.face_locations(fr.load_image_file(img_path)))
 
 
 class VideoQuery:
@@ -104,6 +108,14 @@ class VideoQuery:
         # diff = next_YUV - curr_YUV
         return np.sum(np.abs(diff))
     
+    def detect_faces(self) -> float:
+        jpg_path = self.fp.replace('_rgb/', '_jpg/')
+        jpg_dirs = sorted(os.listdir(jpg_path), key= lambda x: int(x[5:-4]))
+        jpg_paths = [f'{jpg_path}/{frame}' for frame in jpg_dirs[:VID_LEN*FPS]]
+        print(f'\nDetecting faces in video {self.name}...')
+        total_faces = sum(face_detect(jpg) for jpg in tqdm(jpg_paths))
+        return total_faces / len(jpg_paths)
+    
     def to_video(self) -> NoReturn:
         fourcc = cv2.VideoWriter_fourcc(*'MJPG')
         vid_writer = cv2.VideoWriter(f'output_video/{self.name}.avi', fourcc,
@@ -143,24 +155,21 @@ if __name__ == '__main__':
         fq = args[1]
         vid_name = fq.split('/')[-1]
         vq = VideoQuery(fq)
-        vq.to_video()
-        sc = scene_detect(vid_name, threshold=20)
-        print(sc)
+        faces = vq.detect_faces()
+        print(faces)
         
         sys.exit()
-    fpath = "/Users/yingxuanguo/Documents/USC/CSCI-576/Final Project/Data_rgb"
+    fpath = "/Users/yingxuanguo/Documents/USC/CSCI-576/Final Project/Test_rgb"
     categories = next(os.walk(fpath))[1]
     cat_paths = [os.path.join(fpath, cat) for cat in categories]
     vid_names = [next(os.walk(cat))[1] for cat in cat_paths]
-    # # commented code below used for converting form rgb to .avi video files
-    # vid_paths = [[os.path.join(cat_paths[i], v) for v in cat]
-    #              for i, cat in enumerate(vid_names)]
-    # videos = [[VideoQuery(vid) for vid in cat] for cat in vid_paths]
-    # to_vid = [[vid.to_video() for vid in cat] for cat in videos]
-    scenes = {categories[i]:
-                  {vid_names[i][j]: scene_detect(vid_names[i][j], 25)
-                   for j, vid in enumerate(c)}
-              for i, c in enumerate(vid_names)}
-    scenes = {"feature_name": "scene_cuts", "values": scenes}
+    vid_paths = [[os.path.join(cat_paths[i], v) for v in cat]
+                 for i, cat in enumerate(vid_names)]
+    videos = [[VideoQuery(vid) for vid in cat] for cat in vid_paths]
+    faces = {categories[i]:
+                 {vid_names[i][j]: vid.detect_faces()
+                  for j, vid in enumerate(c)}
+             for i, c in enumerate(videos)}
+    faces = {"feature_name": "avg_faces", "values": faces}
     with open('data.json', 'w') as f:
-        json.dump(scenes, f, indent=2, sort_keys=True)
+        json.dump(faces, f, indent=2, sort_keys=True)
