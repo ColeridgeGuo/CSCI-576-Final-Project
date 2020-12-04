@@ -46,6 +46,39 @@ def scene_detect(name: str, threshold: float = 30.0) -> int:
 def face_detect(img_path: str) -> int:
     return len(fr.face_locations(fr.load_image_file(img_path)))
 
+def percentage_saturation(pix, threshold):
+    num_above_threshold = 0
+    for x in range(WIDTH):
+        for y in range(HEIGHT):
+            h, s, v = pix[x, y]
+            if v > threshold:
+                num_above_threshold += 1
+    percentage_above_threshold = num_above_threshold / (WIDTH * HEIGHT)
+    return percentage_above_threshold
+
+def get_histogram_for_channel(image, channel, bins=None, ranges=None):
+    if ranges is None:
+        ranges = [0, 256]
+    if bins is None:
+        bins = [256]
+    return cv2.calcHist([image], [channel], None, bins, ranges)
+
+def average_brightness(pix):
+    sum_v = 0
+    for x in range(WIDTH):
+        for y in range(HEIGHT):
+            h, s, v = pix[x, y]
+            sum_v += v
+    return sum_v / (WIDTH * HEIGHT)
+
+def average_saturation(pix):
+    sum_s = 0
+    for x in range(WIDTH):
+        for y in range(HEIGHT):
+            h, s, v = pix[x, y]
+            sum_s += s
+    return sum_s / (WIDTH * HEIGHT)
+
 
 class VideoQuery:
     
@@ -111,11 +144,81 @@ class VideoQuery:
     
     def detect_faces(self) -> float:
         jpg_path = self.fp.replace('_rgb/', '_jpg/')
-        jpg_dirs = sorted(os.listdir(jpg_path), key= lambda x: int(x[5:-4]))
+        jpg_dirs = sorted(os.listdir(jpg_path), key=lambda x: int(x[5:-4]))
         jpg_paths = [f'{jpg_path}/{frame}' for frame in jpg_dirs[:VID_LEN*FPS]]
         print(f'\nDetecting faces in video {self.name}...')
         total_faces = sum(face_detect(jpg) for jpg in tqdm(jpg_paths))
         return total_faces / len(jpg_paths)
+    
+    def cal_average_brightness_var(self) -> float:
+        # read in all frames' rgb values
+        print(f'Calculating avg brightness of video "{self.name}"...')
+        images_rgb = [(Image.frombytes('RGB', (WIDTH, HEIGHT), d))
+                      for d in self.data]
+        # RGBtoHSV
+        brightness_each_frame = []
+        for image_rgb in images_rgb:
+            image_hsv = image_rgb.convert('HSV')
+            pix = image_hsv.load()
+            # return the average brightness of each frame
+            average_value = average_brightness(pix)
+            brightness_each_frame.append(average_value)
+        arr = np.var(brightness_each_frame)
+        return float(arr)
+    
+    def cal_average_saturation_var(self) -> float:
+        images_rgb = [(Image.frombytes('RGB', (WIDTH, HEIGHT), d))
+                      for d in self.data]
+        print(f'Calculating avg saturation of video "{self.name}"...')
+        # RGBtoHSV
+        saturation_each_frame = []
+        for image_rgb in images_rgb:
+            image_hsv = image_rgb.convert('HSV')
+            pix = image_hsv.load()
+            average_value = average_saturation(pix)
+            saturation_each_frame.append(average_value)
+        arr = np.var(saturation_each_frame)
+        return float(arr)
+    
+    def cal_avg_high_satu_pixels(self, threshold) -> float:
+        images_rgb = [(Image.frombytes('RGB', (WIDTH, HEIGHT), d))
+                      for d in self.data]
+        print(f'Calculating avg high saturation pixels of "{self.name}"...')
+        # RGBtoHSV
+        percentage_above_threshold = 0
+        for image_rgb in images_rgb:
+            image_hsv = image_rgb.convert('HSV')
+            pix = image_hsv.load()
+            # return the average percentage saturation of each frame
+            percentage_above_threshold += percentage_saturation(pix, threshold)
+            
+        return percentage_above_threshold / (VID_LEN * FPS)
+    
+    def cal_color_entropy(self):
+        images_rgb = [(Image.frombytes('RGB', (WIDTH, HEIGHT), d))
+                      for d in self.data]
+        print(f'Calculating color entropy of video "{self.name}"...')
+        image_entropy = []
+        for image_rgb in images_rgb:
+            image_hsv = image_rgb.convert('HSV')
+            img_array = np.asarray(image_hsv)
+            hue_hist = get_histogram_for_channel(img_array, 0, [180], [0, 180])
+            value_hist = get_histogram_for_channel(img_array, 2, [256], [0, 256])
+            
+            entropy = 0
+            
+            denom = float(np.sum(hue_hist))
+            prob = np.array([float(x)/denom for x in hue_hist if x != 0])
+            log_prob = np.log10(prob)
+            entropy += np.dot(prob, log_prob)
+            
+            denom = float(np.sum(value_hist))
+            prob = np.array([float(x) / denom for x in value_hist if x != 0])
+            log_prob = np.log10(prob)
+            entropy *= np.dot(prob, log_prob)
+            
+            image_entropy.append(-entropy)
+        return np.sum(image_entropy) / (VID_LEN * FPS)
     
     def to_video(self) -> NoReturn:
         fourcc = cv2.VideoWriter_fourcc(*'MJPG')
@@ -175,7 +278,7 @@ def scene_detect_all():
     scenes = {"feature_name": "scene_cuts", "values": scenes}
     with open('scene_cuts.json', 'w') as f:
         json.dump(scenes, f, indent=2, sort_keys=True)
-
+        
 def calc_motion_all():
     videos = [[VideoQuery(vid) for vid in cat] for cat in vid_paths]
     motion = {categories[i]:
@@ -186,6 +289,54 @@ def calc_motion_all():
     motion = {"feature_name": "total_motion", "values": motion}
     with open('total_motion.json', 'w') as f:
         json.dump(motion, f, indent=2, sort_keys=True)
+        
+def calc_brightness_var_all():
+    videos = [[VideoQuery(vid) for vid in cat] for cat in vid_paths]
+    avg_brightness_var = {categories[i]:
+                              {vid_names[i][j]: vid.cal_average_brightness_var()
+                               for j, vid in enumerate(c)}
+                          for i, c in enumerate(videos)}
+    
+    avg_brightness_var = {"feature_name": "average_brightness_variance",
+                          "values": avg_brightness_var}
+    with open('avg_brightness_var.json', 'w') as f:
+        json.dump(avg_brightness_var, f, indent=2, sort_keys=True)
+        
+def calc_saturation_var_all():
+    videos = [[VideoQuery(vid) for vid in cat] for cat in vid_paths]
+    avg_saturation_var = {categories[i]:
+                              {vid_names[i][j]: vid.cal_average_saturation_var()
+                               for j, vid in enumerate(c)}
+                          for i, c in enumerate(videos)}
+    
+    avg_saturation_var = {"feature_name": "average_saturation_variance",
+                          "values": avg_saturation_var}
+    with open('avg_saturation_var.json', 'w') as f:
+        json.dump(avg_saturation_var, f, indent=2, sort_keys=True)
+        
+def calc_percentage_saturation_all():
+    videos = [[VideoQuery(vid) for vid in cat] for cat in vid_paths]
+    pct_satu = {categories[i]:
+                    {vid_names[i][j]: vid.cal_avg_high_satu_pixels(80)
+                     for j, vid in enumerate(c)}
+                for i, c in enumerate(videos)}
+    
+    pct_satu = {"feature_name": "average_percentage_high_saturation_pixels",
+                "values": pct_satu}
+    with open('avg_saturation_var.json', 'w') as f:
+        json.dump(pct_satu, f, indent=2, sort_keys=True)
+        
+def calc_color_entropy_all():
+    videos = [[VideoQuery(vid) for vid in cat] for cat in vid_paths]
+    color_entropy = {categories[i]:
+                         {vid_names[i][j]: vid.cal_color_entropy()
+                          for j, vid in enumerate(c)}
+                     for i, c in enumerate(videos)}
+    
+    color_entropy = {"feature_name": "color_entropy",
+                     "values": color_entropy}
+    with open('color_entropy.json', 'w') as f:
+        json.dump(color_entropy, f, indent=2, sort_keys=True)
 
 
 if __name__ == '__main__':
@@ -219,4 +370,11 @@ if __name__ == '__main__':
     scene_detect_all()
     # calculate motion in all videos and output to json
     calc_motion_all()
-
+    # calculate average brightness variance in all videos and output to json
+    calc_brightness_var_all()
+    # calculate average saturation variance in all videos and output to json
+    calc_saturation_var_all()
+    # calculate average high_saturation pixels in all videos and output to json
+    calc_percentage_saturation_all()
+    # calculate color entropy in all videos and output to json
+    calc_color_entropy_all()
