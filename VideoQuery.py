@@ -152,7 +152,7 @@ class VideoQuery:
     
     def cal_average_brightness_var(self) -> float:
         # read in all frames' rgb values
-        print(f"\n\033[92mReading rgb values of frames: \033[0m")
+        print(f'Calculating avg brightness of video "{self.name}"...')
         images_rgb = [(Image.frombytes('RGB', (WIDTH, HEIGHT), d))
                       for d in self.data]
         # RGBtoHSV
@@ -169,7 +169,7 @@ class VideoQuery:
     def cal_average_saturation_var(self) -> float:
         images_rgb = [(Image.frombytes('RGB', (WIDTH, HEIGHT), d))
                       for d in self.data]
-        
+        print(f'Calculating avg saturation of video "{self.name}"...')
         # RGBtoHSV
         saturation_each_frame = []
         for image_rgb in images_rgb:
@@ -183,7 +183,7 @@ class VideoQuery:
     def cal_avg_high_satu_pixels(self, threshold) -> float:
         images_rgb = [(Image.frombytes('RGB', (WIDTH, HEIGHT), d))
                       for d in self.data]
-        
+        print(f'Calculating avg high saturation pixels of "{self.name}"...')
         # RGBtoHSV
         percentage_above_threshold = 0
         for image_rgb in images_rgb:
@@ -196,7 +196,8 @@ class VideoQuery:
     
     def cal_color_entropy(self):
         images_rgb = [(Image.frombytes('RGB', (WIDTH, HEIGHT), d))
-                      for d in self.data]   
+                      for d in self.data]
+        print(f'Calculating color entropy of video "{self.name}"...')
         image_entropy = []
         for image_rgb in images_rgb:
             image_hsv = image_rgb.convert('HSV')
@@ -356,7 +357,7 @@ if __name__ == '__main__':
         print(f'Total motion: {mt}')
         sys.exit()
         
-    fpath = "D:/fianl576/Data_rgb"
+    fpath = "/Users/yingxuanguo/Documents/USC/CSCI-576/Final Project/Test_rgb"
     categories = next(os.walk(fpath))[1]
     cat_paths = [os.path.join(fpath, cat) for cat in categories]
     vid_names = [next(os.walk(cat))[1] for cat in cat_paths]
