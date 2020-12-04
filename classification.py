@@ -4,6 +4,11 @@ import json
 import os
 from typing import List
 from sklearn.model_selection import GridSearchCV
+from sklearn.tree import DecisionTreeClassifier
+from sklearn.naive_bayes import GaussianNB, MultinomialNB
+from sklearn.ensemble import AdaBoostClassifier
+from sklearn.svm import SVC
+from sklearn.neighbors import KNeighborsClassifier
 from xgboost import XGBClassifier
 
 
@@ -28,6 +33,23 @@ def join_dfs(features: dict):
     df.sort_index(axis=1, inplace=True)
     return df
 
+def fit_predict(clf) -> list:
+    clf.fit(X_train, y_train)
+    return clf.predict(X_test)
+
+def grid_search_cv(model, param_grid, cv=4):
+    gs = GridSearchCV(model(),
+                      param_grid=param_grid,
+                      scoring='accuracy', cv=cv, n_jobs=-1)
+    gs.fit(X_train, y_train)
+    return gs.best_params_
+
+def format_output(input_list) -> List[str]:
+    return [f'{item:<9}' for item in input_list]
+
+def compare(l1) -> int:
+    return sum(tup1 == tup2 for tup1, tup2 in zip(l1, y_test))
+
 
 # list all json files of all features
 root_path = "Data"
@@ -45,27 +67,23 @@ te_idx1 = te_df.index.get_level_values(0)
 # train-test data
 X_train, X_test, y_train, y_test = tr_df, te_df, tr_idx1, te_idx1
 
-def fit_predict(clf) -> list:
-    clf.fit(X_train, y_train)
-    return clf.predict(X_test)
-
-def grid_search_cv(model, param_grid, cv=4):
-    gs = GridSearchCV(model(),
-                      param_grid=param_grid,
-                      scoring='accuracy', cv=cv, n_jobs=-1)
-    gs.fit(X_train, y_train)
-    return gs.best_params_
-    
-def format_output(input_list) -> List[str]:
-    return [f'{item:<9}' for item in input_list]
-
-def compare(l1) -> int:
-    return sum(tup1 == tup2 for tup1, tup2 in zip(l1, y_test))
-
 
 xgb_params = {'n_estimators': (2, 5, 10, 20, 30, 50),
               'learning_rate': (.01, .05, .1, .2, .3)}
 xgb_params_best = grid_search_cv(XGBClassifier, xgb_params)
-xgb_res = fit_predict(XGBClassifier(**xgb_params_best))
+xgb_res = fit_predict(XGBClassifier())
+
+gnb_res = fit_predict(GaussianNB())
+mnb_res = fit_predict(MultinomialNB())
+adb_res = fit_predict(AdaBoostClassifier())
+svm_res = fit_predict(SVC())
+knn_res = fit_predict(KNeighborsClassifier())
+dct_res = fit_predict(DecisionTreeClassifier())
 print(f'XGBoost:        {format_output(xgb_res)} - {compare(xgb_res)}')
+print(f'GaussianNB:     {format_output(gnb_res)} - {compare(gnb_res)}')
+print(f'MultinomialNB:  {format_output(mnb_res)} - {compare(mnb_res)}')
+print(f'AdaBoost:       {format_output(adb_res)} - {compare(adb_res)}')
+print(f'SVM:            {format_output(svm_res)} - {compare(svm_res)}')
+print(f'KNN:            {format_output(knn_res)} - {compare(knn_res)}')
+print(f'Decision tree:  {format_output(dct_res)} - {compare(dct_res)}')
 print(f'Y-test:         {format_output(y_test)}')
