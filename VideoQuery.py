@@ -11,6 +11,7 @@ import cv2
 from scenedetect import VideoManager
 from scenedetect import SceneManager
 from scenedetect.detectors import ContentDetector
+import face_recognition as fr
 
 WIDTH, HEIGHT = 640, 360
 VID_LEN, FPS = 20, 24
@@ -30,7 +31,8 @@ def read_image_RGB(fp: str) -> np.ndarray:
     return rgbs
 
 def scene_detect(name: str, threshold: float = 30.0) -> int:
-    video_manager = VideoManager([f'output_video/{name}.avi'])
+    video_manager = VideoManager([f'output_video_test/{name}.avi'])
+    # video_manager = VideoManager([f'output_video_train/{name}.avi'])
     scene_manager = SceneManager()
     scene_manager.add_detector(ContentDetector(threshold=threshold))
     base_timecode = video_manager.get_base_timecode()
@@ -40,6 +42,9 @@ def scene_detect(name: str, threshold: float = 30.0) -> int:
     scene_manager.detect_scenes(frame_source=video_manager)
     scene_list = scene_manager.get_scene_list(base_timecode)
     return len(scene_list)-1
+
+def face_detect(img_path: str) -> int:
+    return len(fr.face_locations(fr.load_image_file(img_path)))
 
 
 class VideoQuery:
@@ -104,6 +109,14 @@ class VideoQuery:
         # diff = next_YUV - curr_YUV
         return np.sum(np.abs(diff))
     
+    def detect_faces(self) -> float:
+        jpg_path = self.fp.replace('_rgb/', '_jpg/')
+        jpg_dirs = sorted(os.listdir(jpg_path), key= lambda x: int(x[5:-4]))
+        jpg_paths = [f'{jpg_path}/{frame}' for frame in jpg_dirs[:VID_LEN*FPS]]
+        print(f'\nDetecting faces in video {self.name}...')
+        total_faces = sum(face_detect(jpg) for jpg in tqdm(jpg_paths))
+        return total_faces / len(jpg_paths)
+    
     def to_video(self) -> NoReturn:
         fourcc = cv2.VideoWriter_fourcc(*'MJPG')
         vid_writer = cv2.VideoWriter(f'output_video/{self.name}.avi', fourcc,
@@ -135,23 +148,20 @@ class VideoQuery:
         label.pack()
         root.after(0, update, 0)
         root.mainloop()
-        
-        
-if __name__ == '__main__':
-    args = sys.argv
-    if len(args) > 1:  # if input video specified, process single video
-        fq = args[1]
-        vid_name = fq.split('/')[-1]
-        vq = VideoQuery(fq)
-        vq.to_video()
-        sc = scene_detect(vid_name, threshold=20)
-        print(sc)
-        
-        sys.exit()
-    fpath = "/Users/yingxuanguo/Documents/USC/CSCI-576/Final Project/Data_rgb"
-    categories = next(os.walk(fpath))[1]
-    cat_paths = [os.path.join(fpath, cat) for cat in categories]
-    vid_names = [next(os.walk(cat))[1] for cat in cat_paths]
+
+
+def face_detect_all():
+    videos = [[VideoQuery(vid) for vid in cat] for cat in vid_paths]
+    faces = {categories[i]:
+                 {vid_names[i][j]: vid.detect_faces()
+                  for j, vid in enumerate(c)}
+             for i, c in enumerate(videos)}
+    
+    faces = {"feature_name": "avg_faces", "values": faces}
+    with open('avg_faces.json', 'w') as f:
+        json.dump(faces, f, indent=2, sort_keys=True)
+
+def scene_detect_all():
     # # commented code below used for converting form rgb to .avi video files
     # vid_paths = [[os.path.join(cat_paths[i], v) for v in cat]
     #              for i, cat in enumerate(vid_names)]
@@ -161,6 +171,52 @@ if __name__ == '__main__':
                   {vid_names[i][j]: scene_detect(vid_names[i][j], 25)
                    for j, vid in enumerate(c)}
               for i, c in enumerate(vid_names)}
+    
     scenes = {"feature_name": "scene_cuts", "values": scenes}
-    with open('data.json', 'w') as f:
+    with open('scene_cuts.json', 'w') as f:
         json.dump(scenes, f, indent=2, sort_keys=True)
+
+def calc_motion_all():
+    videos = [[VideoQuery(vid) for vid in cat] for cat in vid_paths]
+    motion = {categories[i]:
+                  {vid_names[i][j]: vid.calc_motion()
+                   for j, vid in enumerate(c)}
+              for i, c in enumerate(videos)}
+    
+    motion = {"feature_name": "total_motion", "values": motion}
+    with open('total_motion.json', 'w') as f:
+        json.dump(motion, f, indent=2, sort_keys=True)
+
+
+if __name__ == '__main__':
+    args = sys.argv
+    if len(args) > 1:  # if input video specified, process single video
+        fq = args[1]
+        vid_name = fq.split('/')[-1]
+        vq = VideoQuery(fq)
+        # detect faces
+        fc = vq.detect_faces()
+        print(f'Average faces: {fc}')
+        # detect scene cuts
+        vq.to_video()
+        sc = scene_detect(vid_name, threshold=25)
+        print(f'Scene cuts: {sc}')
+        # calculate motion
+        mt = vq.calc_motion()
+        print(f'Total motion: {mt}')
+        sys.exit()
+        
+    fpath = "/Users/yingxuanguo/Documents/USC/CSCI-576/Final Project/Test_rgb"
+    categories = next(os.walk(fpath))[1]
+    cat_paths = [os.path.join(fpath, cat) for cat in categories]
+    vid_names = [next(os.walk(cat))[1] for cat in cat_paths]
+    vid_paths = [[os.path.join(cat_paths[i], v) for v in cat]
+                 for i, cat in enumerate(vid_names)]
+    
+    # detect faces in all videos and output to json
+    face_detect_all()
+    # detect scene cuts in all videos and output to json
+    scene_detect_all()
+    # calculate motion in all videos and output to json
+    calc_motion_all()
+
