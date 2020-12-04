@@ -1,0 +1,60 @@
+#!/usr/bin/env python
+# coding: utf-8
+
+# In[91]:
+
+
+from PIL import Image
+import matplotlib.pyplot as plt
+import cv2
+import json
+
+def plot_descriptor(y):
+    #plot
+    x = range(0, 480)
+    y = descriptor_score
+    plt.figure(figsize=(8.88, 3))    
+    plt.plot(x, y, color = 'red', alpha = 0.1)
+    plt.fill_between(x, 0, y, color='red', alpha=.4)
+    plt.ylim([0.85,1.0])
+    plt.axis('off')
+    
+    plt.savefig("descriptor.png")
+    plt.show()
+
+#read json
+with open("D:/final576/descriptor/test_descriptor.json",'r') as load_f:
+    data = json.load(load_f)
+
+ads_1_descriptor = []
+concerts_1_descriptor = []
+
+for item in data['ads']['ads_1']:
+    ads_1_descriptor.append(item)
+    
+for item in data['concerts']['concerts_1']:
+    concerts_1_descriptor.append(item)
+
+#compute descriptor_score
+descriptor_score = []
+for i in range(0, 480):
+    if  ads_1_descriptor[i] > concerts_1_descriptor[i]:
+        descriptor_score.append(concerts_1_descriptor[i] / ads_1_descriptor[i])
+    else:
+        descriptor_score.append(ads_1_descriptor[i] / concerts_1_descriptor[i])
+
+#plot
+plot_descriptor(descriptor_score)
+
+        
+
+
+
+
+
+
+# In[ ]:
+
+
+
+
