@@ -31,7 +31,8 @@ def read_image_RGB(fp: str) -> np.ndarray:
     return rgbs
 
 def scene_detect(name: str, threshold: float = 30.0) -> int:
-    video_manager = VideoManager([f'output_video/{name}.avi'])
+    video_manager = VideoManager([f'output_video_test/{name}.avi'])
+    # video_manager = VideoManager([f'output_video_train/{name}.avi'])
     scene_manager = SceneManager()
     scene_manager.add_detector(ContentDetector(threshold=threshold))
     base_timecode = video_manager.get_base_timecode()
@@ -147,29 +148,75 @@ class VideoQuery:
         label.pack()
         root.after(0, update, 0)
         root.mainloop()
-        
-        
+
+
+def face_detect_all():
+    videos = [[VideoQuery(vid) for vid in cat] for cat in vid_paths]
+    faces = {categories[i]:
+                 {vid_names[i][j]: vid.detect_faces()
+                  for j, vid in enumerate(c)}
+             for i, c in enumerate(videos)}
+    
+    faces = {"feature_name": "avg_faces", "values": faces}
+    with open('avg_faces.json', 'w') as f:
+        json.dump(faces, f, indent=2, sort_keys=True)
+
+def scene_detect_all():
+    # # commented code below used for converting form rgb to .avi video files
+    # vid_paths = [[os.path.join(cat_paths[i], v) for v in cat]
+    #              for i, cat in enumerate(vid_names)]
+    # videos = [[VideoQuery(vid) for vid in cat] for cat in vid_paths]
+    # to_vid = [[vid.to_video() for vid in cat] for cat in videos]
+    scenes = {categories[i]:
+                  {vid_names[i][j]: scene_detect(vid_names[i][j], 25)
+                   for j, vid in enumerate(c)}
+              for i, c in enumerate(vid_names)}
+    
+    scenes = {"feature_name": "scene_cuts", "values": scenes}
+    with open('scene_cuts.json', 'w') as f:
+        json.dump(scenes, f, indent=2, sort_keys=True)
+
+def calc_motion_all():
+    videos = [[VideoQuery(vid) for vid in cat] for cat in vid_paths]
+    motion = {categories[i]:
+                  {vid_names[i][j]: vid.calc_motion()
+                   for j, vid in enumerate(c)}
+              for i, c in enumerate(videos)}
+    
+    motion = {"feature_name": "total_motion", "values": motion}
+    with open('total_motion.json', 'w') as f:
+        json.dump(motion, f, indent=2, sort_keys=True)
+
+
 if __name__ == '__main__':
     args = sys.argv
     if len(args) > 1:  # if input video specified, process single video
         fq = args[1]
         vid_name = fq.split('/')[-1]
         vq = VideoQuery(fq)
-        faces = vq.detect_faces()
-        print(faces)
-        
+        # detect faces
+        fc = vq.detect_faces()
+        print(f'Average faces: {fc}')
+        # detect scene cuts
+        vq.to_video()
+        sc = scene_detect(vid_name, threshold=25)
+        print(f'Scene cuts: {sc}')
+        # calculate motion
+        mt = vq.calc_motion()
+        print(f'Total motion: {mt}')
         sys.exit()
+        
     fpath = "/Users/yingxuanguo/Documents/USC/CSCI-576/Final Project/Test_rgb"
     categories = next(os.walk(fpath))[1]
     cat_paths = [os.path.join(fpath, cat) for cat in categories]
     vid_names = [next(os.walk(cat))[1] for cat in cat_paths]
     vid_paths = [[os.path.join(cat_paths[i], v) for v in cat]
                  for i, cat in enumerate(vid_names)]
-    videos = [[VideoQuery(vid) for vid in cat] for cat in vid_paths]
-    faces = {categories[i]:
-                 {vid_names[i][j]: vid.detect_faces()
-                  for j, vid in enumerate(c)}
-             for i, c in enumerate(videos)}
-    faces = {"feature_name": "avg_faces", "values": faces}
-    with open('data.json', 'w') as f:
-        json.dump(faces, f, indent=2, sort_keys=True)
+    
+    # detect faces in all videos and output to json
+    face_detect_all()
+    # detect scene cuts in all videos and output to json
+    scene_detect_all()
+    # calculate motion in all videos and output to json
+    calc_motion_all()
+
